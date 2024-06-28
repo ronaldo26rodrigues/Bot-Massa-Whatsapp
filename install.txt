@@ -1,0 +1,3 @@
+ pyinstaller --onefile --name BotMassaWhatsapp.exe .\bot_whatsapp.py --icon data\botwhatsapp.ico --noconsole --add-data=data\chromedriver.exe:data
+
+ pyi-makespec --onefile --name BotMassaWhatsapp --icon data\botwhatsapp.ico --noconsole --add-data=data\chromedriver.exe:data bot_whatsapp.py
