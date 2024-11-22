@@ -1,4 +1,5 @@
 import sys
+import urllib.parse
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -15,6 +16,9 @@ import shutil
 from io import BytesIO 
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
+
+import cv2
+import tempfile
 
 INSTRUCOES = """
 Com esta ferramenta você pode fazer o envio em massa de mensagens via 
@@ -64,8 +68,8 @@ width, height = size = 256,256
 layout = [  
             [sg.Button('Instruções'), sg.Button("Redefinir Whatsapp", key='-RESETWP-')],
             [sg.Text('Insira o texto:'), sg.Multiline(size=(60, 10), key='-message-'), sg.Input(enable_events=True, visible=False, key='-txtin-'), sg.FileBrowse('Importar texto', key='-txt-')],
-            [sg.Text('Selecione a planilha:'), sg.FileBrowse('Procurar', key='-file_enviar-', file_types=(('Excel', "*.xlsx"),))],
-            [sg.Text('Anexar imagem na mensagem:'), sg.Button('Procurar', key='-CHOOSEIMG-')],
+            [sg.Text('Selecione a planilha:'), sg.FileBrowse('Procurar', key='-file_enviar-', file_types=(('Planilha Excel', "*.xlsx"),))],
+            [sg.Text('Anexar imagem ou vídeo na mensagem:'), sg.Button('Procurar', key='-CHOOSEIMG-')],
             [sg.Input(visible=False, key='-IMGPATH-')],
             [sg.Image(size=size, background_color='grey', key = "Image")],
             [sg.Slider(range=(5, 60), default_value=10, expand_x=True, orientation='horizontal', key='-seconds-'), 
@@ -119,14 +123,15 @@ def send_massa(planilha, mensagem: str, ordenar=None, img=''):
                 return None
             print(str(contatos_df.loc[i, c[3:-3].strip()]))
             # print([x[3:-3].strip() for x in columns])
-        texto = texto.replace('\n', '%0A')
-        link = f"https://web.whatsapp.com/send?phone={numero}&text={texto}"
+        # texto = texto.replace('\n', '%0A')
+        link = f"https://web.whatsapp.com/send?phone={str(int(float(numero)))}&text={urllib.parse.quote_plus(texto)}"
+        print(link)
         try:
             navegador.get(link)
             while len(navegador.find_elements(By.ID, "side")) < 1:
                 time.sleep(int(values['-seconds-']))
                 if img!='':
-                    navegador.find_element(By.CSS_SELECTOR, "span[data-icon='attach-menu-plus']").click()
+                    navegador.find_element(By.CSS_SELECTOR, "span[data-icon='plus']").click()
                     time.sleep(2)
                     anexa = navegador.find_elements(By.CSS_SELECTOR, "input[type='file']")
                     
@@ -134,12 +139,25 @@ def send_massa(planilha, mensagem: str, ordenar=None, img=''):
                     time.sleep(2)
                     navegador.find_element(By.CSS_SELECTOR, "span[data-icon='send']").click()
                 else:
-                    navegador.find_element(By.XPATH,'//*[@id="main"]/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div/p/span').send_keys(Keys.ENTER)
+                    navegador.find_element(By.CSS_SELECTOR, "span[data-icon='send']").click()
+                    time.sleep(1)
+                    # navegador.find_element(By.XPATH,'//*[@id="main"]/footer/div[1]/div/span[2]/div/div[2]/div[1]/div/div/p/span').send_keys(Keys.ENTER)
             time.sleep(4)
         except Exception as erro:
             with open("Logerro.txt", "a") as arquivo:
                 arquivo.write(f'\nNumero {numero} invalido')
-            print("Erro")
+            print(erro)
+
+
+def getFirstFrame(videofile):
+    vidcap = cv2.VideoCapture(videofile)
+    success, image = vidcap.read()
+    if success:
+        # Criar um arquivo temporário
+        temp_file = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
+        # Salvar o frame no arquivo temporário
+        cv2.imwrite(temp_file.name, image)
+        return temp_file.name  # Retornar o caminho do arquivo temporário
 
 def image_to_data(im):
     """
@@ -196,13 +214,13 @@ while True:
     if event=='-RESETWP-':
         ctz = sg.popup_yes_no("A sessão do whatsapp será excluída e será necessário excluir a antiga conexão do celular e realizar a conexão novamente", "Deseja realmente exluir?")
         if ctz=='Yes':
-            shutil.rmtree(os.getenv('APPDATA') + "\\botmassawhatsappdata\\_sessao", ignore_errors=True)
+            shutil.rmtree('C:\\botmassawhatsappdata\\_sessao', ignore_errors=True)
             sg.popup_ok("Sessão do whatsapp excluida")
         else:
             pass
     
     if event=='-CHOOSEIMG-':
-        img_path = sg.popup_get_file("Escolha uma imagem para anexar à mensagem", no_window=True, file_types=(('Imagens', "*.png;*.jpg;*.jpeg"),))
+        img_path = sg.popup_get_file("Escolha uma imagem ou vídeo para anexar à mensagem", no_window=True, file_types=(('Imagens', "*.png;*.jpg;*.jpeg;*.mp4;*.mov"),))
         window['-IMGPATH-'].update(img_path)
         if img_path == '':
             continue
@@ -210,7 +228,10 @@ while True:
         if not Path(img_path).is_file():
             continue
         try:
-            im = Image.open(img_path)
+            if img_path.endswith('png') or img_path.endswith('jpeg') or img_path.endswith('jpg'):
+                im = Image.open(img_path)
+            else:
+                im = Image.open(getFirstFrame(img_path))
         except UnidentifiedImageError:
             continue
         w, h = size = im.size
