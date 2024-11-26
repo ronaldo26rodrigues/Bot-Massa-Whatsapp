@@ -16,9 +16,14 @@ import shutil
 from io import BytesIO 
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
+import chromedriver_autoinstaller
+
+
 
 import cv2
 import tempfile
+
+chromedriver_autoinstaller.install() 
 
 INSTRUCOES = """
 Com esta ferramenta você pode fazer o envio em massa de mensagens via 
@@ -86,7 +91,7 @@ def send_massa(planilha, mensagem: str, ordenar=None, img=''):
     chrome_options2 = Options()
     chrome_options2.add_argument(r"user-data-dir=" + os.getenv('APPDATA') + "\\botmassawhatsappdata\\_sessao\\sessao")
     service = Service(executable_path=os.path.join(CAMINHO_DADOS, 'data\\chromedriver.exe'))
-    navegador = webdriver.Chrome(chrome_options=chrome_options2, service=service)
+    navegador = webdriver.Chrome(chrome_options=chrome_options2)
     navegador.get('https://web.whatsapp.com/')
     time.sleep(4)
 
